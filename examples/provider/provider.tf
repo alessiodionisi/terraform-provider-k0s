@@ -1,0 +1,2 @@
+provider "k0s" {
+}

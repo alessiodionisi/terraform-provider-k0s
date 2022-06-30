@@ -4,7 +4,7 @@ resource "k0s_cluster" "example" {
 
   hosts = [
     {
-      role = "controller"
+      role = "controller+worker"
 
       ssh = {
         address  = "10.0.0.1"

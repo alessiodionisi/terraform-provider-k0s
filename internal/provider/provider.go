@@ -42,7 +42,8 @@ func (p *provider) GetDataSources(ctx context.Context) (map[string]tfsdk.DataSou
 
 func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
-		Attributes: map[string]tfsdk.Attribute{},
+		Attributes:          map[string]tfsdk.Attribute{},
+		MarkdownDescription: "The k0s provider is used to create and managed a k0s cluster.",
 	}, nil
 }
 

@@ -19,7 +19,7 @@ resource "k0s_cluster" "example" {
 
   hosts = [
     {
-      role = "controller"
+      role = "controller+worker"
 
       ssh = {
         address  = "10.0.0.1"
@@ -51,6 +51,11 @@ resource "k0s_cluster" "example" {
 - `name` (String) Name of the cluster.
 - `version` (String) Desired k0s version.
 
+### Optional
+
+- `config` (String) Embedded k0s cluster configuration. When left out, the output of `k0s config create` will be used.
+- `dynamic_config` (Boolean) Enable k0s dynamic config.
+
 ### Read-Only
 
 - `id` (String) Unique ID of the cluster.
@@ -61,10 +66,19 @@ resource "k0s_cluster" "example" {
 
 Required:
 
-- `hostname` (String) Override host's hostname. When not set, the hostname reported by the operating system is used.
-- `no_taints` (Boolean) When `true` and used in conjuction with the `controller+worker` role, the default taints are disabled making regular workloads schedulable on the node. By default, k0s sets a node-role.kubernetes.io/master:NoSchedule taint on `controller+worker` nodes and only workloads with toleration for it will be scheduled.
 - `role` (String) Role of the host. One of `controller`, `controller+worker`, `single`, `worker`.
 - `ssh` (Attributes) SSH connection options. (see [below for nested schema](#nestedatt--hosts--ssh))
+
+Optional:
+
+- `environment` (Map of String) List of key-value pairs to set to the target host's environment variables.
+- `hostname` (String) Override host's hostname. When not set, the hostname reported by the operating system is used.
+- `install_flags` (List of String) Extra flags passed to the `k0s install` command on the target host.
+- `no_taints` (Boolean) When `true` and used in conjuction with the `controller+worker` role, the default taints are disabled making regular workloads schedulable on the node. By default, k0s sets a `node-role.kubernetes.io/master:NoSchedule` taint on `controller+worker` nodes and only workloads with toleration for it will be scheduled.
+- `os` (String) Override OS distribution auto-detection.
+- `private_address` (String) Override private IP address selected by host fact gathering.
+- `private_interface` (String) Override private network interface selected by host fact gathering. Useful in case fact gathering picks the wrong private network interface.
+
 
 <a id="nestedatt--hosts--ssh"></a>
 ### Nested Schema for `hosts.ssh`

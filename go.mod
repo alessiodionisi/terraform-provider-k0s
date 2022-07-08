@@ -8,8 +8,8 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.9.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.17.0
 	github.com/k0sproject/dig v0.2.0
-	github.com/k0sproject/k0sctl v0.13.0
-	github.com/k0sproject/rig v0.6.3
+	github.com/k0sproject/k0sctl v0.13.1
+	github.com/k0sproject/rig v0.6.4
 	gopkg.in/yaml.v2 v2.4.0
 )
 

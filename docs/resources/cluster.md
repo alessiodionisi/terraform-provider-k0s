@@ -72,13 +72,13 @@ Required:
 Optional:
 
 - `environment` (Map of String) List of key-value pairs to set to the target host's environment variables.
+- `files` (Attributes) List of files to be uploaded to the host. (see [below for nested schema](#nestedatt--hosts--files))
 - `hostname` (String) Override host's hostname. When not set, the hostname reported by the operating system is used.
 - `install_flags` (List of String) Extra flags passed to the `k0s install` command on the target host.
 - `no_taints` (Boolean) When `true` and used in conjuction with the `controller+worker` role, the default taints are disabled making regular workloads schedulable on the node. By default, k0s sets a `node-role.kubernetes.io/master:NoSchedule` taint on `controller+worker` nodes and only workloads with toleration for it will be scheduled.
 - `os` (String) Override OS distribution auto-detection.
 - `private_address` (String) Override private IP address selected by host fact gathering.
 - `private_interface` (String) Override private network interface selected by host fact gathering. Useful in case fact gathering picks the wrong private network interface.
-
 
 <a id="nestedatt--hosts--ssh"></a>
 ### Nested Schema for `hosts.ssh`
@@ -89,5 +89,22 @@ Required:
 - `key_path` (String) Path to an SSH private key file.
 - `port` (Number) TCP port of the SSH service on the host.
 - `user` (String) Username to log in as.
+
+
+<a id="nestedatt--hosts--files"></a>
+### Nested Schema for `hosts.files`
+
+Required:
+
+- `src` (String) File path, an URL or Glob pattern to match files to be uploaded. URL sources will be directly downloaded using the target host.
+
+Optional:
+
+- `dirPerm` (String) Directory permission mode for created directories. (default: 0755)
+- `dst` (String) Destination filename for the file. Only usable for single file uploads. (default: basename of file)
+- `dstDir` (String) Destination directory for the file(s). Full directory structure will be created if it does not already exist on the host. (default: user home)
+- `group` (String) Group name of file/directory owner, must exist on the host.
+- `perm` (String) File permission mode for uploaded file(s). (default: same as local)
+- `user` (String) User name of file/directory owner, must exist on the host.
 
 

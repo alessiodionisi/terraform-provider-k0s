@@ -57,7 +57,7 @@ func (t clusterResourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.
 			"hosts": {
 				MarkdownDescription: "Hosts configuration.",
 				Required:            true,
-				Attributes: tfsdk.SetNestedAttributes(map[string]tfsdk.Attribute{
+				Attributes: tfsdk.ListNestedAttributes(map[string]tfsdk.Attribute{
 					"role": {
 						MarkdownDescription: "Role of the host. One of `controller`, `controller+worker`, `single`, `worker`.",
 						Required:            true,
@@ -101,6 +101,47 @@ func (t clusterResourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.
 						Type: types.MapType{
 							ElemType: types.StringType,
 						},
+					},
+					"files": {
+						MarkdownDescription: "List of files to be uploaded to the host.",
+						Optional:            true,
+						Attributes: tfsdk.ListNestedAttributes(map[string]tfsdk.Attribute{
+							"src": {
+								MarkdownDescription: "File path, an URL or Glob pattern to match files to be uploaded. URL sources will be directly downloaded using the target host.",
+								Required:            true,
+								Type:                types.StringType,
+							},
+							"dst_dir": {
+								MarkdownDescription: "Destination directory for the file(s). Full directory structure will be created if it does not already exist on the host. (default: user home)",
+								Optional:            true,
+								Type:                types.StringType,
+							},
+							"dst": {
+								MarkdownDescription: "Destination filename for the file. Only usable for single file uploads. (default: basename of file)",
+								Optional:            true,
+								Type:                types.StringType,
+							},
+							"perm": {
+								MarkdownDescription: "File permission mode for uploaded file(s). (default: same as local)",
+								Optional:            true,
+								Type:                types.StringType,
+							},
+							"dir_perm": {
+								MarkdownDescription: "Directory permission mode for created directories. (default: 0755)",
+								Optional:            true,
+								Type:                types.StringType,
+							},
+							"user": {
+								MarkdownDescription: "User name of file/directory owner, must exist on the host.",
+								Optional:            true,
+								Type:                types.StringType,
+							},
+							"group": {
+								MarkdownDescription: "Group name of file/directory owner, must exist on the host.",
+								Optional:            true,
+								Type:                types.StringType,
+							},
+						}),
 					},
 					"ssh": {
 						MarkdownDescription: "SSH connection options.",
@@ -148,6 +189,16 @@ func (t clusterResourceType) NewResource(ctx context.Context, in tfsdk.Provider)
 	}, diags
 }
 
+type clusterResourceDataHostFile struct {
+	Src     types.String `tfsdk:"src"`
+	DstDir  types.String `tfsdk:"dst_dir"`
+	Dst     types.String `tfsdk:"dst"`
+	Perm    types.String `tfsdk:"perm"`
+	DirPerm types.String `tfsdk:"dir_perm"`
+	User    types.String `tfsdk:"user"`
+	Group   types.String `tfsdk:"group"`
+}
+
 type clusterResourceDataHostSSH struct {
 	Address types.String `tfsdk:"address"`
 	User    types.String `tfsdk:"user"`
@@ -156,15 +207,16 @@ type clusterResourceDataHostSSH struct {
 }
 
 type clusterResourceDataHost struct {
-	Role             types.String               `tfsdk:"role"`
-	NoTaints         types.Bool                 `tfsdk:"no_taints"`
-	Hostname         types.String               `tfsdk:"hostname"`
-	SSH              clusterResourceDataHostSSH `tfsdk:"ssh"`
-	PrivateInterface types.String               `tfsdk:"private_interface"`
-	PrivateAddress   types.String               `tfsdk:"private_address"`
-	OS               types.String               `tfsdk:"os"`
-	InstallFlags     types.List                 `tfsdk:"install_flags"`
-	Environment      types.Map                  `tfsdk:"environment"`
+	Role             types.String                  `tfsdk:"role"`
+	NoTaints         types.Bool                    `tfsdk:"no_taints"`
+	Hostname         types.String                  `tfsdk:"hostname"`
+	SSH              clusterResourceDataHostSSH    `tfsdk:"ssh"`
+	PrivateInterface types.String                  `tfsdk:"private_interface"`
+	PrivateAddress   types.String                  `tfsdk:"private_address"`
+	OS               types.String                  `tfsdk:"os"`
+	InstallFlags     types.List                    `tfsdk:"install_flags"`
+	Environment      types.Map                     `tfsdk:"environment"`
+	Files            []clusterResourceDataHostFile `tfsdk:"files"`
 }
 
 type clusterResourceData struct {
@@ -373,6 +425,19 @@ func getK0sctlConfig(data clusterResourceData) *k0sctl_v1beta1.Cluster {
 		var environment map[string]string
 		host.Environment.ElementsAs(context.Background(), &environment, false)
 
+		var files []*k0sctl_cluster.UploadFile
+		for _, file := range host.Files {
+			files = append(files, &k0sctl_cluster.UploadFile{
+				Source:          file.Src.Value,
+				DestinationDir:  file.DstDir.Value,
+				DestinationFile: file.Dst.Value,
+				PermMode:        file.Perm.Value,
+				DirPermMode:     file.DirPerm.Value,
+				User:            file.User.Value,
+				Group:           file.Group.Value,
+			})
+		}
+
 		k0sctlHosts = append(k0sctlHosts, &k0sctl_cluster.Host{
 			Connection: k0s_rig.Connection{
 				SSH: &k0s_rig.SSH{
@@ -389,6 +454,7 @@ func getK0sctlConfig(data clusterResourceData) *k0sctl_v1beta1.Cluster {
 			OSIDOverride:     host.OS.Value,
 			InstallFlags:     installFlags,
 			Environment:      environment,
+			Files:            files,
 		})
 	}
 

@@ -1,4 +1,4 @@
-name: Test
+name: CI
 
 on:
   pull_request:
@@ -34,6 +34,7 @@ jobs:
           version: latest
 
   generate:
+    name: Generate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3.5.2
@@ -50,8 +51,8 @@ jobs:
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
 
-  test:
-    name: Terraform Provider Acceptance Tests
+  acceptance-tests:
+    name: Acceptance tests
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15

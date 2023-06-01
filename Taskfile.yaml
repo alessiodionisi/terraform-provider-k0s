@@ -1,0 +1,17 @@
+version: "3"
+
+tasks:
+  install:
+    cmds:
+      - go install .
+
+  generate:
+    cmds:
+      - go generate ./...
+
+  acceptance-tests:
+    env:
+      TF_ACC: "1"
+
+    cmds:
+      - go test ./... -v -timeout 120m

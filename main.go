@@ -14,7 +14,6 @@ import (
 
 var (
 	version string = "dev"
-	commit  string = ""
 )
 
 func main() {

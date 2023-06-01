@@ -12,8 +12,7 @@ import (
 var _ provider.Provider = &K0sProvider{}
 
 type K0sProvider struct {
-	configured bool
-	version    string
+	version string
 }
 
 type K0sProviderModel struct {
@@ -31,15 +30,6 @@ func (p *K0sProvider) Schema(ctx context.Context, req provider.SchemaRequest, re
 }
 
 func (p *K0sProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data K0sProviderModel
-
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	p.configured = true
 }
 
 func (p *K0sProvider) Resources(ctx context.Context) []func() resource.Resource {

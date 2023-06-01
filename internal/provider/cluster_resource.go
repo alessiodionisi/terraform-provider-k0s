@@ -181,7 +181,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	data.ID = types.StringValue(data.Name.String())
+	data.ID = types.StringValue(data.Name.ValueString())
 	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -356,37 +356,37 @@ func getK0sctlConfig(data *ClusterResourceModel) *k0sctl_v1beta1.Cluster {
 		k0sctlHosts = append(k0sctlHosts, &k0sctl_cluster.Host{
 			Connection: k0s_rig.Connection{
 				SSH: &k0s_rig.SSH{
-					Address: host.SSH.Address.String(),
+					Address: host.SSH.Address.ValueString(),
 					Port:    int(host.SSH.Port.ValueInt64()),
-					User:    host.SSH.User.String(),
+					User:    host.SSH.User.ValueString(),
 				},
 			},
-			Role:             host.Role.String(),
+			Role:             host.Role.ValueString(),
 			NoTaints:         host.NoTaints.ValueBool(),
-			HostnameOverride: host.Hostname.String(),
-			PrivateInterface: host.PrivateInterface.String(),
-			PrivateAddress:   host.PrivateAddress.String(),
-			OSIDOverride:     host.OS.String(),
+			HostnameOverride: host.Hostname.ValueString(),
+			PrivateInterface: host.PrivateInterface.ValueString(),
+			PrivateAddress:   host.PrivateAddress.ValueString(),
+			OSIDOverride:     host.OS.ValueString(),
 			InstallFlags:     installFlags,
 			Environment:      environment,
 		})
 	}
 
 	var config dig.Mapping
-	if err := yaml.Unmarshal([]byte(data.Config.String()), &config); err != nil {
+	if err := yaml.Unmarshal([]byte(data.Config.ValueString()), &config); err != nil {
 		panic(err)
 	}
 
 	return &k0sctl_v1beta1.Cluster{
-		APIVersion: "k0sctl.k0sproject.io/v1beta1",
+		APIVersion: k0sctl_v1beta1.APIVersion,
 		Kind:       "Cluster",
 		Metadata: &k0sctl_v1beta1.ClusterMetadata{
-			Name: data.Name.String(),
+			Name: data.Name.ValueString(),
 		},
 		Spec: &k0sctl_cluster.Spec{
 			Hosts: k0sctlHosts,
 			K0s: &k0sctl_cluster.K0s{
-				Version:       data.Version.String(),
+				Version:       data.Version.ValueString(),
 				DynamicConfig: data.DynamicConfig.ValueBool(),
 				Config:        config,
 			},

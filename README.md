@@ -4,19 +4,22 @@
 
 Terraform provider to create and manage [k0s](https://k0sproject.io) Kubernetes clusters, using embedded [k0sctl](https://github.com/k0sproject/k0sctl).
 
-Docs: https://registry.terraform.io/providers/alessiodionisi/k0s/latest/docs
+## Getting started
 
-## Requirements
+You can install stable releases of the provider from the [Terrafom registry](https://registry.terraform.io/providers/alessiodionisi/k0s/latest).
 
-- [Terraform](https://www.terraform.io/downloads.html) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.20
+## Contributing
 
-## Building The Provider
+If you wish to work on the provider, you'll first need these requirements:
 
-1. Clone the repository
-1. Enter the repository directory
-1. Build the provider using the Go `install` command:
+- [Terraform](https://www.terraform.io) >= 1.0
+- [Go](https://golang.org) >= 1.20
+- [Task](https://taskfile.dev) >= 1.3
 
-```shell
-go install
-```
+To compile the provider, run `task install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
+
+To generate or update documentation, run `task generate`.
+
+In order to run the full suite of acceptance tests, run `task acceptance-tests`.
+
+_Note:_ acceptance tests create real resources, and often cost money to run.

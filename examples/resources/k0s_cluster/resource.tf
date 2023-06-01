@@ -1,6 +1,6 @@
 resource "k0s_cluster" "example" {
   name    = "example"
-  version = "1.23.8+k0s.0"
+  version = "1.27.2+k0s.0"
 
   hosts = [
     {

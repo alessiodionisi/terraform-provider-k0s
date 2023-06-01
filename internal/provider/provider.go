@@ -26,7 +26,7 @@ func (p *K0sProvider) Metadata(ctx context.Context, req provider.MetadataRequest
 
 func (p *K0sProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "The k0s provider is used to create and managed a k0s cluster.",
+		MarkdownDescription: "The k0s provider is used to create and manage a k0s Kubernetes cluster.",
 	}
 }
 

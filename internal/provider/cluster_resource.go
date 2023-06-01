@@ -283,7 +283,16 @@ func (r ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		lockPhase,
 		&k0sctl_phase.PrepareHosts{},
 		&k0sctl_phase.GatherK0sFacts{},
-		&k0sctl_phase.Reset{},
+		&k0sctl_phase.ResetWorkers{
+			NoDrain:  true,
+			NoDelete: true,
+		},
+		&k0sctl_phase.ResetControllers{
+			NoDrain:  true,
+			NoDelete: true,
+			NoLeave:  true,
+		},
+		&k0sctl_phase.ResetLeader{},
 		&k0sctl_phase.Unlock{Cancel: lockPhase.Cancel},
 		&k0sctl_phase.Disconnect{},
 	)
@@ -318,6 +327,7 @@ func getK0sctlManagerForCreateOrUpdate(k0sctlConfig *k0sctl_v1beta1.Cluster) k0s
 		&k0sctl_phase.ValidateFacts{},
 		&k0sctl_phase.UploadBinaries{},
 		&k0sctl_phase.DownloadK0s{},
+		&k0sctl_phase.InstallBinaries{},
 		&k0sctl_phase.PrepareArm{},
 		&k0sctl_phase.ConfigureK0s{},
 		&k0sctl_phase.InitializeK0s{},
@@ -325,8 +335,8 @@ func getK0sctlManagerForCreateOrUpdate(k0sctlConfig *k0sctl_v1beta1.Cluster) k0s
 		&k0sctl_phase.InstallWorkers{},
 		&k0sctl_phase.UpgradeControllers{},
 		&k0sctl_phase.UpgradeWorkers{},
-		&k0sctl_phase.Unlock{Cancel: lockPhase.Cancel},
 		&k0sctl_phase.GetKubeconfig{},
+		&k0sctl_phase.Unlock{Cancel: lockPhase.Cancel},
 		&k0sctl_phase.Disconnect{},
 	)
 

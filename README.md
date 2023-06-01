@@ -1,4 +1,4 @@
-# Terraform provider for k0s (using k0sctl lib)
+# Terraform provider for k0s (using embedded k0sctl)
 
 > ⚠️ The provider name on Terraform registry has been renamed from `adnsio/k0s` to `alessiodionisi/k0s`, please update your `required_providers` block.
 

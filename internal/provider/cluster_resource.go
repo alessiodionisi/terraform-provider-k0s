@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/k0sproject/dig"
 	k0sctl_phase "github.com/k0sproject/k0sctl/phase"
 	k0sctl_v1beta1 "github.com/k0sproject/k0sctl/pkg/apis/k0sctl.k0sproject.io/v1beta1"
@@ -16,176 +18,150 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var _ tfsdk.ResourceType = clusterResourceType{}
-var _ tfsdk.Resource = clusterResource{}
-var _ tfsdk.ResourceWithImportState = clusterResource{}
+var _ resource.Resource = &ClusterResource{}
+var _ resource.ResourceWithImportState = &ClusterResource{}
 
-type clusterResourceType struct{}
-
-func (t clusterResourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		MarkdownDescription: "Manages a k0s cluster.",
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				MarkdownDescription: "Unique ID of the cluster.",
-				Computed:            true,
-				Type:                types.StringType,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					tfsdk.UseStateForUnknown(),
-				},
-			},
-			"name": {
-				MarkdownDescription: "Name of the cluster.",
-				Required:            true,
-				Type:                types.StringType,
-			},
-			"version": {
-				MarkdownDescription: "Desired k0s version.",
-				Required:            true,
-				Type:                types.StringType,
-			},
-			"dynamic_config": {
-				MarkdownDescription: "Enable k0s dynamic config.",
-				Optional:            true,
-				Type:                types.BoolType,
-			},
-			"config": {
-				MarkdownDescription: "Embedded k0s cluster configuration. When left out, the output of `k0s config create` will be used.",
-				Optional:            true,
-				Type:                types.StringType,
-			},
-			"hosts": {
-				MarkdownDescription: "Hosts configuration.",
-				Required:            true,
-				Attributes: tfsdk.SetNestedAttributes(map[string]tfsdk.Attribute{
-					"role": {
-						MarkdownDescription: "Role of the host. One of `controller`, `controller+worker`, `single`, `worker`.",
-						Required:            true,
-						Type:                types.StringType,
-					},
-					"no_taints": {
-						MarkdownDescription: "When `true` and used in conjuction with the `controller+worker` role, the default taints are disabled making regular workloads schedulable on the node. By default, k0s sets a `node-role.kubernetes.io/master:NoSchedule` taint on `controller+worker` nodes and only workloads with toleration for it will be scheduled.",
-						Optional:            true,
-						Type:                types.BoolType,
-					},
-					"hostname": {
-						MarkdownDescription: "Override host's hostname. When not set, the hostname reported by the operating system is used.",
-						Optional:            true,
-						Type:                types.StringType,
-					},
-					"private_interface": {
-						MarkdownDescription: "Override private network interface selected by host fact gathering. Useful in case fact gathering picks the wrong private network interface.",
-						Optional:            true,
-						Type:                types.StringType,
-					},
-					"private_address": {
-						MarkdownDescription: "Override private IP address selected by host fact gathering.",
-						Optional:            true,
-						Type:                types.StringType,
-					},
-					"os": {
-						MarkdownDescription: "Override OS distribution auto-detection.",
-						Optional:            true,
-						Type:                types.StringType,
-					},
-					"install_flags": {
-						MarkdownDescription: "Extra flags passed to the `k0s install` command on the target host.",
-						Optional:            true,
-						Type: types.ListType{
-							ElemType: types.StringType,
-						},
-					},
-					"environment": {
-						MarkdownDescription: "List of key-value pairs to set to the target host's environment variables.",
-						Optional:            true,
-						Type: types.MapType{
-							ElemType: types.StringType,
-						},
-					},
-					"ssh": {
-						MarkdownDescription: "SSH connection options.",
-						Required:            true,
-						Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
-							"address": {
-								MarkdownDescription: "IP address of the host.",
-								Required:            true,
-								Type:                types.StringType,
-							},
-							"user": {
-								MarkdownDescription: "Username to log in as.",
-								Required:            true,
-								Type:                types.StringType,
-							},
-							"port": {
-								MarkdownDescription: "TCP port of the SSH service on the host.",
-								Required:            true,
-								Type:                types.Int64Type,
-							},
-							"key_path": {
-								MarkdownDescription: "Path to an SSH private key file.",
-								Required:            true,
-								Type:                types.StringType,
-							},
-						}),
-					},
-				}),
-			},
-			"kubeconfig": {
-				MarkdownDescription: "Admin kubeconfig of the cluster.",
-				Computed:            true,
-				Type:                types.StringType,
-				Sensitive:           true,
-			},
-		},
-	}, nil
+type ClusterResourceModel struct {
+	ID            types.String               `tfsdk:"id"`
+	Name          types.String               `tfsdk:"name"`
+	Version       types.String               `tfsdk:"version"`
+	Hosts         []ClusterResourceModelHost `tfsdk:"hosts"`
+	Kubeconfig    types.String               `tfsdk:"kubeconfig"`
+	DynamicConfig types.Bool                 `tfsdk:"dynamic_config"`
+	Config        types.String               `tfsdk:"config"`
 }
 
-func (t clusterResourceType) NewResource(ctx context.Context, in tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	provider, diags := convertProviderType(in)
-
-	return clusterResource{
-		provider: provider,
-	}, diags
+type ClusterResourceModelHost struct {
+	Role             types.String                `tfsdk:"role"`
+	NoTaints         types.Bool                  `tfsdk:"no_taints"`
+	Hostname         types.String                `tfsdk:"hostname"`
+	SSH              ClusterResourceModelHostSSH `tfsdk:"ssh"`
+	PrivateInterface types.String                `tfsdk:"private_interface"`
+	PrivateAddress   types.String                `tfsdk:"private_address"`
+	OS               types.String                `tfsdk:"os"`
+	InstallFlags     types.List                  `tfsdk:"install_flags"`
+	Environment      types.Map                   `tfsdk:"environment"`
 }
 
-type clusterResourceDataHostSSH struct {
+type ClusterResourceModelHostSSH struct {
 	Address types.String `tfsdk:"address"`
 	User    types.String `tfsdk:"user"`
 	Port    types.Int64  `tfsdk:"port"`
 	KeyPath types.String `tfsdk:"key_path"`
 }
 
-type clusterResourceDataHost struct {
-	Role             types.String               `tfsdk:"role"`
-	NoTaints         types.Bool                 `tfsdk:"no_taints"`
-	Hostname         types.String               `tfsdk:"hostname"`
-	SSH              clusterResourceDataHostSSH `tfsdk:"ssh"`
-	PrivateInterface types.String               `tfsdk:"private_interface"`
-	PrivateAddress   types.String               `tfsdk:"private_address"`
-	OS               types.String               `tfsdk:"os"`
-	InstallFlags     types.List                 `tfsdk:"install_flags"`
-	Environment      types.Map                  `tfsdk:"environment"`
+type ClusterResource struct {
+	provider K0sProvider
 }
 
-type clusterResourceData struct {
-	ID            types.String              `tfsdk:"id"`
-	Name          types.String              `tfsdk:"name"`
-	Version       types.String              `tfsdk:"version"`
-	Hosts         []clusterResourceDataHost `tfsdk:"hosts"`
-	Kubeconfig    types.String              `tfsdk:"kubeconfig"`
-	DynamicConfig types.Bool                `tfsdk:"dynamic_config"`
-	Config        types.String              `tfsdk:"config"`
+func (r *ClusterResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cluster"
 }
 
-type clusterResource struct {
-	provider provider
+func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages a k0s cluster.",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "Unique ID of the cluster.",
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"name": schema.StringAttribute{
+				MarkdownDescription: "Name of the cluster.",
+				Required:            true,
+			},
+			"version": schema.StringAttribute{
+				MarkdownDescription: "Desired k0s version.",
+				Required:            true,
+			},
+			"dynamic_config": schema.BoolAttribute{
+				MarkdownDescription: "Enable k0s dynamic config.",
+				Optional:            true,
+			},
+			"config": schema.StringAttribute{
+				MarkdownDescription: "Embedded k0s cluster configuration. When left out, the output of `k0s config create` will be used.",
+				Optional:            true,
+			},
+			"hosts": schema.SetNestedAttribute{
+				MarkdownDescription: "Hosts configuration.",
+				Required:            true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"role": schema.StringAttribute{
+							MarkdownDescription: "Role of the host. One of `controller`, `controller+worker`, `single`, `worker`.",
+							Required:            true,
+						},
+						"no_taints": schema.BoolAttribute{
+							MarkdownDescription: "When `true` and used in conjuction with the `controller+worker` role, the default taints are disabled making regular workloads schedulable on the node. By default, k0s sets a `node-role.kubernetes.io/master:NoSchedule` taint on `controller+worker` nodes and only workloads with toleration for it will be scheduled.",
+							Optional:            true,
+						},
+						"hostname": schema.StringAttribute{
+							MarkdownDescription: "Override host's hostname. When not set, the hostname reported by the operating system is used.",
+							Optional:            true,
+						},
+						"private_interface": schema.StringAttribute{
+							MarkdownDescription: "Override private network interface selected by host fact gathering. Useful in case fact gathering picks the wrong private network interface.",
+							Optional:            true,
+						},
+						"private_address": schema.StringAttribute{
+							MarkdownDescription: "Override private IP address selected by host fact gathering.",
+							Optional:            true,
+						},
+						"os": schema.StringAttribute{
+							MarkdownDescription: "Override OS distribution auto-detection.",
+							Optional:            true,
+						},
+						"install_flags": schema.ListAttribute{
+							MarkdownDescription: "Extra flags passed to the `k0s install` command on the target host.",
+							Optional:            true,
+							ElementType:         types.StringType,
+						},
+						"environment": schema.MapAttribute{
+							MarkdownDescription: "List of key-value pairs to set to the target host's environment variables.",
+							Optional:            true,
+							ElementType:         types.StringType,
+						},
+						"ssh": schema.SingleNestedAttribute{
+							MarkdownDescription: "SSH connection options.",
+							Required:            true,
+							Attributes: map[string]schema.Attribute{
+								"address": schema.StringAttribute{
+									MarkdownDescription: "IP address of the host.",
+									Required:            true,
+								},
+								"user": schema.StringAttribute{
+									MarkdownDescription: "Username to log in as.",
+									Required:            true,
+								},
+								"port": schema.Int64Attribute{
+									MarkdownDescription: "TCP port of the SSH service on the host.",
+									Required:            true,
+								},
+								"key_path": schema.StringAttribute{
+									MarkdownDescription: "Path to an SSH private key file.",
+									Required:            true,
+								},
+							},
+						},
+					},
+				},
+			},
+			"kubeconfig": schema.StringAttribute{
+				MarkdownDescription: "Admin kubeconfig of the cluster.",
+				Computed:            true,
+				Sensitive:           true,
+			},
+		},
+	}
 }
 
-func (r clusterResource) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
-	var data clusterResourceData
+func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data *ClusterResourceModel
 
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -205,18 +181,16 @@ func (r clusterResource) Create(ctx context.Context, req tfsdk.CreateResourceReq
 		return
 	}
 
-	data.ID = types.String{Value: data.Name.Value}
-	data.Kubeconfig = types.String{Value: k0sctlConfig.Metadata.Kubeconfig}
+	data.ID = types.StringValue(data.Name.String())
+	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
 
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r clusterResource) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
-	var data clusterResourceData
+func (r ClusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data *ClusterResourceModel
 
-	diags := req.State.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -248,17 +222,15 @@ func (r clusterResource) Read(ctx context.Context, req tfsdk.ReadResourceRequest
 		return
 	}
 
-	data.Kubeconfig = types.String{Value: k0sctlConfig.Metadata.Kubeconfig}
+	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
 
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r clusterResource) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
-	var data clusterResourceData
+func (r ClusterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data *ClusterResourceModel
 
-	diags := req.Plan.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -278,17 +250,15 @@ func (r clusterResource) Update(ctx context.Context, req tfsdk.UpdateResourceReq
 		return
 	}
 
-	data.Kubeconfig = types.String{Value: k0sctlConfig.Metadata.Kubeconfig}
+	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
 
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r clusterResource) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
-	var data clusterResourceData
+func (r ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data *ClusterResourceModel
 
-	diags := req.State.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -324,8 +294,8 @@ func (r clusterResource) Delete(ctx context.Context, req tfsdk.DeleteResourceReq
 	}
 }
 
-func (r clusterResource) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	tfsdk.ResourceImportStatePassthroughID(ctx, tftypes.NewAttributePath().WithAttributeName("id"), req, resp)
+func (r ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func getK0sctlManagerForCreateOrUpdate(k0sctlConfig *k0sctl_v1beta1.Cluster) k0sctl_phase.Manager {
@@ -363,7 +333,7 @@ func getK0sctlManagerForCreateOrUpdate(k0sctlConfig *k0sctl_v1beta1.Cluster) k0s
 	return manager
 }
 
-func getK0sctlConfig(data clusterResourceData) *k0sctl_v1beta1.Cluster {
+func getK0sctlConfig(data *ClusterResourceModel) *k0sctl_v1beta1.Cluster {
 	k0sctlHosts := []*k0sctl_cluster.Host{}
 
 	for _, host := range data.Hosts {
@@ -376,24 +346,24 @@ func getK0sctlConfig(data clusterResourceData) *k0sctl_v1beta1.Cluster {
 		k0sctlHosts = append(k0sctlHosts, &k0sctl_cluster.Host{
 			Connection: k0s_rig.Connection{
 				SSH: &k0s_rig.SSH{
-					Address: host.SSH.Address.Value,
-					Port:    int(host.SSH.Port.Value),
-					User:    host.SSH.User.Value,
+					Address: host.SSH.Address.String(),
+					Port:    int(host.SSH.Port.ValueInt64()),
+					User:    host.SSH.User.String(),
 				},
 			},
-			Role:             host.Role.Value,
-			NoTaints:         host.NoTaints.Value,
-			HostnameOverride: host.Hostname.Value,
-			PrivateInterface: host.PrivateInterface.Value,
-			PrivateAddress:   host.PrivateAddress.Value,
-			OSIDOverride:     host.OS.Value,
+			Role:             host.Role.String(),
+			NoTaints:         host.NoTaints.ValueBool(),
+			HostnameOverride: host.Hostname.String(),
+			PrivateInterface: host.PrivateInterface.String(),
+			PrivateAddress:   host.PrivateAddress.String(),
+			OSIDOverride:     host.OS.String(),
 			InstallFlags:     installFlags,
 			Environment:      environment,
 		})
 	}
 
 	var config dig.Mapping
-	if err := yaml.Unmarshal([]byte(data.Config.Value), &config); err != nil {
+	if err := yaml.Unmarshal([]byte(data.Config.String()), &config); err != nil {
 		panic(err)
 	}
 
@@ -401,15 +371,19 @@ func getK0sctlConfig(data clusterResourceData) *k0sctl_v1beta1.Cluster {
 		APIVersion: "k0sctl.k0sproject.io/v1beta1",
 		Kind:       "Cluster",
 		Metadata: &k0sctl_v1beta1.ClusterMetadata{
-			Name: data.Name.Value,
+			Name: data.Name.String(),
 		},
 		Spec: &k0sctl_cluster.Spec{
 			Hosts: k0sctlHosts,
 			K0s: &k0sctl_cluster.K0s{
-				Version:       data.Version.Value,
-				DynamicConfig: data.DynamicConfig.Value,
+				Version:       data.Version.String(),
+				DynamicConfig: data.DynamicConfig.ValueBool(),
 				Config:        config,
 			},
 		},
 	}
+}
+
+func NewClusterResource() resource.Resource {
+	return &ClusterResource{}
 }

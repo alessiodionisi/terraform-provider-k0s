@@ -79,7 +79,6 @@ Optional:
 - `private_address` (String) Override private IP address selected by host fact gathering.
 - `private_interface` (String) Override private network interface selected by host fact gathering. Useful in case fact gathering picks the wrong private network interface.
 
-
 <a id="nestedatt--hosts--ssh"></a>
 ### Nested Schema for `hosts.ssh`
 

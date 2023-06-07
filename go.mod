@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/terraform-plugin-testing v1.2.0
 	github.com/k0sproject/dig v0.2.0
 	github.com/k0sproject/k0sctl v0.15.1
-	github.com/k0sproject/rig v0.10.0
+	github.com/k0sproject/rig v0.11.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -75,7 +75,7 @@ require (
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/goidentity/v6 v6.0.1 // indirect
-	github.com/jcmturner/gokrb5/v8 v8.4.3 // indirect
+	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k0sproject/version v0.3.0 // indirect

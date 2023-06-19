@@ -359,7 +359,7 @@ func getK0sctlConfig(data *ClusterResourceModel) *k0sctl_v1beta1.Cluster {
 					Address: host.SSH.Address.ValueString(),
 					Port:    int(host.SSH.Port.ValueInt64()),
 					User:    host.SSH.User.ValueString(),
-					KeyPath: host.SSH.KeyPath.ValueString(),
+					KeyPath: host.SSH.KeyPath.ValueStringPointer(),
 				},
 			},
 			Role:             host.Role.ValueString(),

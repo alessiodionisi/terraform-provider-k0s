@@ -88,5 +88,3 @@ Required:
 - `key_path` (String) Path to an SSH private key file.
 - `port` (Number) TCP port of the SSH service on the host.
 - `user` (String) Username to log in as.
-
-

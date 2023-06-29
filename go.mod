@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/terraform-plugin-testing v1.3.0
 	github.com/k0sproject/dig v0.2.0
 	github.com/k0sproject/k0sctl v0.15.2
-	github.com/k0sproject/rig v0.11.0
+	github.com/k0sproject/rig v0.12.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

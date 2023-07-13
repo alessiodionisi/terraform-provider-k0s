@@ -1,5 +1,6 @@
 ---
 page_title: "k0s Provider"
+subcategory: ""
 description: |-
   The k0s provider is used to create and manage a k0s Kubernetes cluster.
 ---

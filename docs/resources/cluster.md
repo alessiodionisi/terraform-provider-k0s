@@ -53,8 +53,11 @@ resource "k0s_cluster" "example" {
 
 ### Optional
 
+- `concurrency` (Number) Maximum number of hosts to configure in parallel. If omitted, the default value is `0` (unlimited).
 - `config` (String) Embedded k0s cluster configuration. When left out, the output of `k0s config create` will be used.
 - `dynamic_config` (Boolean) Enable k0s dynamic config.
+- `no_drain` (Boolean) Do not drain worker nodes when upgrading. If omitted, the default value is `false`.
+- `no_wait` (Boolean) Do not wait for worker nodes to join. If omitted, the default value is `false`.
 
 ### Read-Only
 
@@ -85,6 +88,9 @@ Optional:
 Required:
 
 - `address` (String) IP address of the host.
-- `key_path` (String) Path to an SSH private key file.
 - `port` (Number) TCP port of the SSH service on the host.
+
+Optional:
+
+- `key_path` (String) Path to an SSH private key file.
 - `user` (String) Username to log in as.

@@ -29,6 +29,9 @@ type ClusterResourceModel struct {
 	Kubeconfig    types.String               `tfsdk:"kubeconfig"`
 	DynamicConfig types.Bool                 `tfsdk:"dynamic_config"`
 	Config        types.String               `tfsdk:"config"`
+	Concurrency   types.Int64                `tfsdk:"concurrency"`
+	NoWait        types.Bool                 `tfsdk:"no_wait"`
+	NoDrain       types.Bool                 `tfsdk:"no_drain"`
 }
 
 type ClusterResourceModelHost struct {
@@ -134,7 +137,7 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 								},
 								"user": schema.StringAttribute{
 									MarkdownDescription: "Username to log in as.",
-									Required:            true,
+									Optional:            true,
 								},
 								"port": schema.Int64Attribute{
 									MarkdownDescription: "TCP port of the SSH service on the host.",
@@ -142,12 +145,24 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 								},
 								"key_path": schema.StringAttribute{
 									MarkdownDescription: "Path to an SSH private key file.",
-									Required:            true,
+									Optional:            true,
 								},
 							},
 						},
 					},
 				},
+			},
+			"concurrency": schema.Int64Attribute{
+				MarkdownDescription: "Maximum number of hosts to configure in parallel. If omitted, the default value is `0` (unlimited).",
+				Optional:            true,
+			},
+			"no_wait": schema.BoolAttribute{
+				MarkdownDescription: "Do not wait for worker nodes to join. If omitted, the default value is `false`.",
+				Optional:            true,
+			},
+			"no_drain": schema.BoolAttribute{
+				MarkdownDescription: "Do not drain worker nodes when upgrading. If omitted, the default value is `false`.",
+				Optional:            true,
 			},
 			"kubeconfig": schema.StringAttribute{
 				MarkdownDescription: "Admin kubeconfig of the cluster.",
@@ -174,7 +189,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	manager := getK0sctlManagerForCreateOrUpdate(k0sctlConfig)
+	manager := getK0sctlManagerForCreateOrUpdate(data, k0sctlConfig)
 
 	if err := manager.Run(); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to create cluster, got error: %s", err))
@@ -187,7 +202,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r ClusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -206,7 +221,8 @@ func (r ClusterResource) Read(ctx context.Context, req resource.ReadRequest, res
 	k0sctlConfig.Spec.Hosts = k0sctl_cluster.Hosts{k0sctlConfig.Spec.K0sLeader()}
 
 	manager := k0sctl_phase.Manager{
-		Config: k0sctlConfig,
+		Config:      k0sctlConfig,
+		Concurrency: int(data.Concurrency.ValueInt64()),
 	}
 
 	manager.AddPhase(
@@ -227,7 +243,7 @@ func (r ClusterResource) Read(ctx context.Context, req resource.ReadRequest, res
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r ClusterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -243,7 +259,7 @@ func (r ClusterResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	manager := getK0sctlManagerForCreateOrUpdate(k0sctlConfig)
+	manager := getK0sctlManagerForCreateOrUpdate(data, k0sctlConfig)
 
 	if err := manager.Run(); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to update cluster, got error: %s", err))
@@ -255,7 +271,7 @@ func (r ClusterResource) Update(ctx context.Context, req resource.UpdateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -272,7 +288,8 @@ func (r ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	manager := k0sctl_phase.Manager{
-		Config: k0sctlConfig,
+		Config:      k0sctlConfig,
+		Concurrency: int(data.Concurrency.ValueInt64()),
 	}
 
 	lockPhase := &k0sctl_phase.Lock{}
@@ -303,13 +320,22 @@ func (r ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 }
 
-func (r ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func getK0sctlManagerForCreateOrUpdate(k0sctlConfig *k0sctl_v1beta1.Cluster) k0sctl_phase.Manager {
+func (r *ClusterResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+}
+
+func getK0sctlManagerForCreateOrUpdate(data *ClusterResourceModel, k0sctlConfig *k0sctl_v1beta1.Cluster) k0sctl_phase.Manager {
+	k0sctl_phase.NoWait = data.NoWait.ValueBool()
+
 	manager := k0sctl_phase.Manager{
-		Config: k0sctlConfig,
+		Config:      k0sctlConfig,
+		Concurrency: int(data.Concurrency.ValueInt64()),
 	}
 
 	lockPhase := &k0sctl_phase.Lock{}
@@ -334,7 +360,15 @@ func getK0sctlManagerForCreateOrUpdate(k0sctlConfig *k0sctl_v1beta1.Cluster) k0s
 		&k0sctl_phase.InstallControllers{},
 		&k0sctl_phase.InstallWorkers{},
 		&k0sctl_phase.UpgradeControllers{},
-		&k0sctl_phase.UpgradeWorkers{},
+		&k0sctl_phase.UpgradeWorkers{
+			NoDrain: data.NoDrain.ValueBool(),
+		},
+		&k0sctl_phase.ResetWorkers{
+			NoDrain: data.NoDrain.ValueBool(),
+		},
+		&k0sctl_phase.ResetControllers{
+			NoDrain: data.NoDrain.ValueBool(),
+		},
 		&k0sctl_phase.GetKubeconfig{},
 		&k0sctl_phase.Unlock{Cancel: lockPhase.Cancel},
 		&k0sctl_phase.Disconnect{},

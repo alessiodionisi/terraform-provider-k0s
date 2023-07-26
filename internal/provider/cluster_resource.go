@@ -137,7 +137,7 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 								},
 								"user": schema.StringAttribute{
 									MarkdownDescription: "Username to log in as.",
-									Required:            true,
+									Optional:            true,
 								},
 								"port": schema.Int64Attribute{
 									MarkdownDescription: "TCP port of the SSH service on the host.",
@@ -145,7 +145,7 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 								},
 								"key_path": schema.StringAttribute{
 									MarkdownDescription: "Path to an SSH private key file.",
-									Required:            true,
+									Optional:            true,
 								},
 							},
 						},

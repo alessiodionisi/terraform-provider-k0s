@@ -88,6 +88,9 @@ Optional:
 Required:
 
 - `address` (String) IP address of the host.
-- `key_path` (String) Path to an SSH private key file.
 - `port` (Number) TCP port of the SSH service on the host.
+
+Optional:
+
+- `key_path` (String) Path to an SSH private key file.
 - `user` (String) Username to log in as.

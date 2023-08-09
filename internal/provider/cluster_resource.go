@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -177,12 +178,14 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	k0sctlConfig := getK0sctlConfig(data)
+	k0sctlConfig := getK0sctlConfig(ctx, &resp.Diagnostics, data)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if err := k0sctlConfig.Validate(); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to create cluster, got error: %s", err))
@@ -206,12 +209,14 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	k0sctlConfig := getK0sctlConfig(data)
+	k0sctlConfig := getK0sctlConfig(ctx, &resp.Diagnostics, data)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if err := k0sctlConfig.Validate(); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to read cluster, got error: %s", err))
@@ -247,12 +252,14 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	k0sctlConfig := getK0sctlConfig(data)
+	k0sctlConfig := getK0sctlConfig(ctx, &resp.Diagnostics, data)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if err := k0sctlConfig.Validate(); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to update cluster, got error: %s", err))
@@ -275,12 +282,14 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	var data *ClusterResourceModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	k0sctlConfig := getK0sctlConfig(data)
+	k0sctlConfig := getK0sctlConfig(ctx, &resp.Diagnostics, data)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if err := k0sctlConfig.Validate(); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to delete cluster, got error: %s", err))
@@ -377,15 +386,25 @@ func getK0sctlManagerForCreateOrUpdate(data *ClusterResourceModel, k0sctlConfig 
 	return manager
 }
 
-func getK0sctlConfig(data *ClusterResourceModel) *k0sctl_v1beta1.Cluster {
+func getK0sctlConfig(ctx context.Context, dia *diag.Diagnostics, data *ClusterResourceModel) *k0sctl_v1beta1.Cluster {
 	k0sctlHosts := []*k0sctl_cluster.Host{}
 
 	for _, host := range data.Hosts {
 		var installFlags []string
-		host.InstallFlags.ElementsAs(context.Background(), &installFlags, false)
+		dia.Append(host.InstallFlags.ElementsAs(ctx, &installFlags, false)...)
+		if dia.HasError() {
+			return nil
+		}
 
 		var environment map[string]string
-		host.Environment.ElementsAs(context.Background(), &environment, false)
+		dia.Append(host.Environment.ElementsAs(ctx, &environment, false)...)
+		if dia.HasError() {
+			return nil
+		}
+
+		if environment == nil {
+			environment = map[string]string{}
+		}
 
 		k0sctlHosts = append(k0sctlHosts, &k0sctl_cluster.Host{
 			Connection: k0s_rig.Connection{

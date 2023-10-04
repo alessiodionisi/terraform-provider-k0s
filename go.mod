@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.18.0
 	github.com/hashicorp/terraform-plugin-testing v1.4.0
 	github.com/k0sproject/dig v0.2.0
-	github.com/k0sproject/k0sctl v0.15.4
+	github.com/k0sproject/k0sctl v0.15.5
 	github.com/k0sproject/rig v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -32,7 +32,7 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.0 // indirect
-	github.com/carlmjohnson/versioninfo v0.22.4 // indirect
+	github.com/carlmjohnson/versioninfo v0.22.5 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/creasty/defaults v1.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -46,7 +46,7 @@ require (
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.14.1 // indirect
+	github.com/go-playground/validator/v10 v10.15.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

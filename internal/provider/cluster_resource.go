@@ -28,6 +28,7 @@ type ClusterResourceModel struct {
 	Version       types.String               `tfsdk:"version"`
 	Hosts         []ClusterResourceModelHost `tfsdk:"hosts"`
 	Kubeconfig    types.String               `tfsdk:"kubeconfig"`
+	K0sctlconfig  types.String               `tfsdk:"k0sctlconfig"`
 	DynamicConfig types.Bool                 `tfsdk:"dynamic_config"`
 	Config        types.String               `tfsdk:"config"`
 	Concurrency   types.Int64                `tfsdk:"concurrency"`
@@ -37,6 +38,7 @@ type ClusterResourceModel struct {
 
 type ClusterResourceModelHost struct {
 	Role             types.String                `tfsdk:"role"`
+	Reset            types.Bool                  `tfsdk:"reset"`
 	NoTaints         types.Bool                  `tfsdk:"no_taints"`
 	Hostname         types.String                `tfsdk:"hostname"`
 	SSH              ClusterResourceModelHostSSH `tfsdk:"ssh"`
@@ -52,6 +54,7 @@ type ClusterResourceModelHostSSH struct {
 	User    types.String `tfsdk:"user"`
 	Port    types.Int64  `tfsdk:"port"`
 	KeyPath types.String `tfsdk:"key_path"`
+	KeyRaw  types.String `tfsdk:"key_raw"`
 }
 
 type ClusterResource struct {
@@ -102,6 +105,10 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 							MarkdownDescription: "When `true` and used in conjuction with the `controller+worker` role, the default taints are disabled making regular workloads schedulable on the node. By default, k0s sets a `node-role.kubernetes.io/master:NoSchedule` taint on `controller+worker` nodes and only workloads with toleration for it will be scheduled.",
 							Optional:            true,
 						},
+						"reset": schema.BoolAttribute{
+							MarkdownDescription: "'reset' flag.",
+							Optional:            true,
+						},
 						"hostname": schema.StringAttribute{
 							MarkdownDescription: "Override host's hostname. When not set, the hostname reported by the operating system is used.",
 							Optional:            true,
@@ -148,6 +155,10 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 									MarkdownDescription: "Path to an SSH private key file.",
 									Optional:            true,
 								},
+								"key_raw": schema.StringAttribute{
+									MarkdownDescription: "PEM encoded SSH private key.",
+									Optional:            true,
+								},
 							},
 						},
 					},
@@ -167,6 +178,11 @@ func (r *ClusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 			},
 			"kubeconfig": schema.StringAttribute{
 				MarkdownDescription: "Admin kubeconfig of the cluster.",
+				Computed:            true,
+				Sensitive:           true,
+			},
+			"k0sctlconfig": schema.StringAttribute{
+				MarkdownDescription: "k0sctl.yaml of the cluster.",
 				Computed:            true,
 				Sensitive:           true,
 			},
@@ -201,6 +217,8 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	data.ID = types.StringValue(data.Name.ValueString())
 	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
+	k0sctlConfigYAML, _ := yaml.Marshal(k0sctlConfig.Spec)
+	data.K0sctlconfig = types.StringValue(string(k0sctlConfigYAML))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -219,31 +237,48 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	if err := k0sctlConfig.Validate(); err != nil {
-		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to read cluster, got error: %s", err))
+		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to read cluster on phase validate, got error: %s", err))
 		return
 	}
 
-	k0sctlConfig.Spec.Hosts = k0sctl_cluster.Hosts{k0sctlConfig.Spec.K0sLeader()}
+	originalHosts := k0sctlConfig.Spec.Hosts
 
-	manager := k0sctl_phase.Manager{
-		Config:      k0sctlConfig,
-		Concurrency: int(data.Concurrency.ValueInt64()),
+	foundWorkingController := false
+	for _, h := range originalHosts.Controllers() { // TODO: prepend this range with leader so in most cases change is transparent
+		k0sctlConfig.Spec.Hosts = k0sctl_cluster.Hosts{ h }
+
+		manager := k0sctl_phase.Manager{
+			Config:      k0sctlConfig,
+			Concurrency: int(data.Concurrency.ValueInt64()),
+		}
+	
+		manager.AddPhase(
+			&k0sctl_phase.Connect{},
+			&k0sctl_phase.DetectOS{},
+			&k0sctl_phase.GatherK0sFacts{},
+			&k0sctl_phase.GetKubeconfig{},
+			&k0sctl_phase.Disconnect{},
+		)
+
+		if err := manager.Run(); err != nil {
+			resp.Diagnostics.AddWarning("k0sctl Warning", fmt.Sprintf("Unable to read cluster when accessing via host %s, got error: %s", h.HostnameOverride, err))
+			continue
+		}	else {
+			foundWorkingController = true
+			break
+		}
 	}
 
-	manager.AddPhase(
-		&k0sctl_phase.Connect{},
-		&k0sctl_phase.DetectOS{},
-		&k0sctl_phase.GatherK0sFacts{},
-		&k0sctl_phase.GetKubeconfig{},
-		&k0sctl_phase.Disconnect{},
-	)
-
-	if err := manager.Run(); err != nil {
-		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to read cluster, got error: %s", err))
+	if ! foundWorkingController {
+		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to find working controller"))
 		return
 	}
+
+	k0sctlConfig.Spec.Hosts = originalHosts
 
 	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
+	k0sctlConfigYAML, _ := yaml.Marshal(k0sctlConfig.Spec)
+	data.K0sctlconfig = types.StringValue(string(k0sctlConfigYAML))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -266,6 +301,9 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	// TODO: handle req.Plan to detect changes in Hosts, handle deletion via Reset flag acted upon by modified getK0sctlManagerForCreateOrUpdate
+	// ref: https://github.com/k0sproject/k0sctl/blob/v0.15.5/phase/reset_controllers.go
+
 	manager := getK0sctlManagerForCreateOrUpdate(data, k0sctlConfig)
 
 	if err := manager.Run(); err != nil {
@@ -274,6 +312,8 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	data.Kubeconfig = types.StringValue(k0sctlConfig.Metadata.Kubeconfig)
+	k0sctlConfigYAML, _ := yaml.Marshal(k0sctlConfig.Spec)
+	data.K0sctlconfig = types.StringValue(string(k0sctlConfigYAML))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -406,16 +446,20 @@ func getK0sctlConfig(ctx context.Context, dia *diag.Diagnostics, data *ClusterRe
 			environment = map[string]string{}
 		}
 
+		authMethods, _ := k0s_rig.ParseSSHPrivateKey([]byte(host.SSH.KeyRaw.ValueString()), k0s_rig.DefaultPasswordCallback)
+
 		k0sctlHosts = append(k0sctlHosts, &k0sctl_cluster.Host{
 			Connection: k0s_rig.Connection{
 				SSH: &k0s_rig.SSH{
-					Address: host.SSH.Address.ValueString(),
-					Port:    int(host.SSH.Port.ValueInt64()),
-					User:    host.SSH.User.ValueString(),
-					KeyPath: host.SSH.KeyPath.ValueStringPointer(),
+					Address:     host.SSH.Address.ValueString(),
+					Port:        int(host.SSH.Port.ValueInt64()),
+					User:        host.SSH.User.ValueString(),
+					KeyPath:     host.SSH.KeyPath.ValueStringPointer(),
+					AuthMethods: authMethods,
 				},
 			},
 			Role:             host.Role.ValueString(),
+			Reset:            host.Reset.ValueBool(),
 			NoTaints:         host.NoTaints.ValueBool(),
 			HostnameOverride: host.Hostname.ValueString(),
 			PrivateInterface: host.PrivateInterface.ValueString(),

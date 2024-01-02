@@ -16,6 +16,7 @@ import (
 	k0sctl_v1beta1 "github.com/k0sproject/k0sctl/pkg/apis/k0sctl.k0sproject.io/v1beta1"
 	k0sctl_cluster "github.com/k0sproject/k0sctl/pkg/apis/k0sctl.k0sproject.io/v1beta1/cluster"
 	k0s_rig "github.com/k0sproject/rig"
+	"github.com/k0sproject/version"
 	"gopkg.in/yaml.v2"
 )
 
@@ -475,6 +476,11 @@ func getK0sctlConfig(ctx context.Context, dia *diag.Diagnostics, data *ClusterRe
 		panic(err)
 	}
 
+	version, err := version.NewVersion(data.Version.ValueString())
+	if err != nil {
+		panic(err)
+	}
+
 	return &k0sctl_v1beta1.Cluster{
 		APIVersion: k0sctl_v1beta1.APIVersion,
 		Kind:       "Cluster",
@@ -484,7 +490,7 @@ func getK0sctlConfig(ctx context.Context, dia *diag.Diagnostics, data *ClusterRe
 		Spec: &k0sctl_cluster.Spec{
 			Hosts: k0sctlHosts,
 			K0s: &k0sctl_cluster.K0s{
-				Version:       data.Version.ValueString(),
+				Version:       version,
 				DynamicConfig: data.DynamicConfig.ValueBool(),
 				Config:        config,
 			},

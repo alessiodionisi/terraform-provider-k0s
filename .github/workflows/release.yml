@@ -13,11 +13,11 @@ jobs:
     name: GoReleaser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.0
+      - uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v4.1.0
+      - uses: actions/setup-go@v5.0.0
         with:
           go-version-file: go.mod
           cache: true

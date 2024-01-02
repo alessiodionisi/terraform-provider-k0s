@@ -62,6 +62,7 @@ resource "k0s_cluster" "example" {
 ### Read-Only
 
 - `id` (String) Unique ID of the cluster.
+- `k0sctlconfig` (String, Sensitive) k0sctl.yaml of the cluster.
 - `kubeconfig` (String, Sensitive) Admin kubeconfig of the cluster.
 
 <a id="nestedatt--hosts"></a>
@@ -81,6 +82,7 @@ Optional:
 - `os` (String) Override OS distribution auto-detection.
 - `private_address` (String) Override private IP address selected by host fact gathering.
 - `private_interface` (String) Override private network interface selected by host fact gathering. Useful in case fact gathering picks the wrong private network interface.
+- `reset` (Boolean) 'reset' flag.
 
 <a id="nestedatt--hosts--ssh"></a>
 ### Nested Schema for `hosts.ssh`
@@ -93,4 +95,5 @@ Required:
 Optional:
 
 - `key_path` (String) Path to an SSH private key file.
+- `key_raw` (String) PEM encoded SSH private key.
 - `user` (String) Username to log in as.

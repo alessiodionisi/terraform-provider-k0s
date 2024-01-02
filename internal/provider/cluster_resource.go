@@ -244,7 +244,7 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	originalHosts := k0sctlConfig.Spec.Hosts
 
 	foundWorkingController := false
-	for _, h := range originalHosts.Controllers() { // TODO: prepend this range with leader so in most cases change is transparent
+	for _, h := range originalHosts.Controllers() {
 		k0sctlConfig.Spec.Hosts = k0sctl_cluster.Hosts{ h }
 
 		manager := k0sctl_phase.Manager{
@@ -301,8 +301,8 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	// TODO: handle req.Plan to detect changes in Hosts, handle deletion via Reset flag acted upon by modified getK0sctlManagerForCreateOrUpdate
-	// ref: https://github.com/k0sproject/k0sctl/blob/v0.15.5/phase/reset_controllers.go
+	// NOTE: Until proper logic is implemented in k0sctl, this code won't actually remove nodes from cluster
+	//       see https://github.com/k0sproject/k0sctl/issues/603
 
 	manager := getK0sctlManagerForCreateOrUpdate(data, k0sctlConfig)
 

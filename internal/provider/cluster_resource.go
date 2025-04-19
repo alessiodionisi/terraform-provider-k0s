@@ -195,7 +195,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	manager := getK0sctlManagerForCreateOrUpdate(data, k0sctlConfig)
 
-	if err := manager.Run(); err != nil {
+	if err := manager.Run(ctx); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to create cluster, got error: %s", err))
 		return
 	}
@@ -239,7 +239,7 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		&k0sctl_phase.Disconnect{},
 	)
 
-	if err := manager.Run(); err != nil {
+	if err := manager.Run(ctx); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to read cluster, got error: %s", err))
 		return
 	}
@@ -269,7 +269,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	manager := getK0sctlManagerForCreateOrUpdate(data, k0sctlConfig)
 
-	if err := manager.Run(); err != nil {
+	if err := manager.Run(ctx); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to update cluster, got error: %s", err))
 		return
 	}
@@ -324,7 +324,7 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		&k0sctl_phase.Disconnect{},
 	)
 
-	if err := manager.Run(); err != nil {
+	if err := manager.Run(ctx); err != nil {
 		resp.Diagnostics.AddError("k0sctl Error", fmt.Sprintf("Unable to delete cluster, got error: %s", err))
 		return
 	}
@@ -349,6 +349,7 @@ func getK0sctlManagerForCreateOrUpdate(data *ClusterResourceModel, k0sctlConfig 
 	}
 
 	lockPhase := &k0sctl_phase.Lock{}
+	unlockPhase := lockPhase.UnlockPhase()
 
 	manager.AddPhase(
 		&k0sctl_phase.DefaultK0sVersion{},
@@ -368,6 +369,7 @@ func getK0sctlManagerForCreateOrUpdate(data *ClusterResourceModel, k0sctlConfig 
 		&k0sctl_phase.InstallBinaries{},
 		&k0sctl_phase.PrepareArm{},
 		&k0sctl_phase.ConfigureK0s{},
+		&k0sctl_phase.RunHooks{Stage: "before", Action: "apply"},
 		&k0sctl_phase.InitializeK0s{},
 		&k0sctl_phase.InstallControllers{},
 		&k0sctl_phase.InstallWorkers{},
@@ -381,8 +383,10 @@ func getK0sctlManagerForCreateOrUpdate(data *ClusterResourceModel, k0sctlConfig 
 		&k0sctl_phase.ResetControllers{
 			NoDrain: data.NoDrain.ValueBool(),
 		},
-		&k0sctl_phase.GetKubeconfig{},
-		&k0sctl_phase.Unlock{Cancel: lockPhase.Cancel},
+		&k0sctl_phase.RunHooks{Stage: "after", Action: "apply"},
+		&k0sctl_phase.ApplyManifests{},
+		&k0sctl_phase.GetKubeconfig{User: "admin"},
+		unlockPhase,
 		&k0sctl_phase.Disconnect{},
 	)
 

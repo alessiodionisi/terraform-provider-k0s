@@ -13,7 +13,7 @@ You can install stable releases of the provider from the [Terrafom registry](htt
 If you wish to work on the provider, you'll first need these requirements:
 
 - [Terraform](https://www.terraform.io) >= 1.0
-- [Go](https://golang.org) >= 1.21
+- [Go](https://golang.org) >= 1.24
 - [Task](https://taskfile.dev) >= 1.3
 
 To compile the provider, run `task install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.

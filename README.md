@@ -1,5 +1,7 @@
 # Terraform provider for k0s (using embedded k0sctl)
 
+> ⚠️ The project has been archived because I've migrated my production and development workloads to Talos.
+
 > ⚠️ The provider name on Terraform registry has been renamed from `adnsio/k0s` to `alessiodionisi/k0s`, please update your `required_providers` block.
 
 Terraform provider to create and manage [k0s](https://k0sproject.io) Kubernetes clusters, using embedded [k0sctl](https://github.com/k0sproject/k0sctl).
